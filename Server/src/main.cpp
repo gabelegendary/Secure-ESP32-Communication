@@ -1,18 +1,62 @@
 #include <Arduino.h>
+#include <driver/adc.h>
+#include <esp_adc_cal.h>
 
-// put function declarations here:
-int myFunction(int, int);
+const int ledPin = 21;
+bool ledState = LOW;
 
-void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+extern "C" uint8_t temprature_sens_read();
+
+float readInternalTemperature()
+{
+  uint8_t temp_raw = temprature_sens_read();
+  return (temp_raw - 32) / 1.8;
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
+void setup()
+{
+  pinMode(ledPin, OUTPUT);
+  Serial.begin(115200);
+  Serial.println("Setup completed.");
 }
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+void toggleLED()
+{
+  ledState = !ledState;
+  digitalWrite(ledPin, ledState);
+}
+
+void loop()
+{
+  static String command = "";
+  while (Serial.available() > 0)
+  {
+    char c = Serial.read();
+    if (c == '\n')
+    {
+      command.trim();
+      if (command == "T")
+      {
+        toggleLED();
+        Serial.println("LED toggled.");
+      }
+      else if (command == "temp")
+      {
+        float temp_celsius = readInternalTemperature();
+        Serial.print("Internal Temperature: ");
+        Serial.print(temp_celsius);
+        Serial.println(" °C");
+        Serial.println("Temperature data sent.");
+      }
+      else
+      {
+        Serial.println("Invalid command received.");
+      }
+      command = "";
+    }
+    else
+    {
+      command += c;
+    }
+  }
 }
