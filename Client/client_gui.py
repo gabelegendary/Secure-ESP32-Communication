@@ -54,9 +54,16 @@ def toggle_led():
         if success:
             led_data = serial_communication.receive_data(1)
             if led_data:
-                log_text.config(state=NORMAL)
-                log_text.insert(END, "LED toggled.\n", "success")
-                log_text.config(state=DISABLED)
+                if toggle_led_button['text'] == 'Toggle LED':
+                    toggle_led_button.config(text='Turn LED Off')
+                    log_text.config(state=NORMAL)
+                    log_text.insert(END, "LED turned on.\n", "success")
+                    log_text.config(state=DISABLED)
+                else:
+                    toggle_led_button.config(text='Toggle LED')
+                    log_text.config(state=NORMAL)
+                    log_text.insert(END, "LED turned off.\n", "success")
+                    log_text.config(state=DISABLED)
             else:
                 log_text.config(state=NORMAL)
                 log_text.insert(END, "Failed to toggle LED.\n", "error")
