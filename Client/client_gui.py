@@ -1,27 +1,27 @@
-# client_gui.py
-
 from tkinter import *
 from tkinter.ttk import Combobox
 from serial.tools.list_ports import comports
 import serial_communication
+import client_exchange
 import time
+import struct
 
 # Global variable to store the serial connection
 serial_connection = None
 
 def establish_session():
     global serial_connection, get_temperature_button, toggle_led_button
-    
+
     selected_port = serial_port_combo.get()
-    
+
     if not selected_port:
         log_text.config(state=NORMAL)
         log_text.insert(END, "Please select a serial port.\n", "error")
         log_text.config(state=DISABLED)
         return
-    
+
     serial_connection = serial_communication.initialize_serial(selected_port, 115200)
-    
+
     if serial_connection:
         establish_button.config(text="Close Session", command=close_session)
         log_text.config(state=NORMAL)
@@ -29,6 +29,7 @@ def establish_session():
         log_text.config(state=DISABLED)
         get_temperature_button.config(state=NORMAL)
         toggle_led_button.config(state=NORMAL)
+        handle_key_exchange()
     else:
         log_text.config(state=NORMAL)
         log_text.insert(END, "Failed to establish connection.\n", "error")
@@ -36,7 +37,7 @@ def establish_session():
 
 def close_session():
     global serial_connection, get_temperature_button, toggle_led_button
-    
+
     if serial_connection:
         serial_communication.close_serial(serial_connection)
         log_text.config(state=NORMAL)
@@ -47,11 +48,27 @@ def close_session():
         get_temperature_button.config(state=DISABLED)
         toggle_led_button.config(state=DISABLED)
 
+def handle_key_exchange():
+    global serial_connection
+
+    try:
+        # Send command for key exchange
+        serial_communication.send_data(serial_connection, b'\x03')
+        time.sleep(1)  # Small delay to ensure the data is received
+        client_exchange.session_init(serial_connection)
+        log_text.config(state=NORMAL)
+        log_text.insert(END, "RSA key generated and sent successfully!\n", "success")
+        log_text.config(state=DISABLED)
+    except Exception as e:
+        log_text.config(state=NORMAL)
+        log_text.insert(END, f"An error occurred during key exchange: {e}\n", "error")
+        log_text.config(state=DISABLED)
+
 def toggle_led():
     global serial_connection
-    
+
     if serial_connection:
-        success = serial_communication.send_data(serial_connection, b'T')
+        success = serial_communication.send_data(serial_connection, b'\x01')
         if success:
             if toggle_led_button['text'] == 'Toggle LED':
                 toggle_led_button.config(text='Turn LED Off')
@@ -74,14 +91,15 @@ def toggle_led():
 
 def get_temperature():
     global serial_connection
-    
+
     if serial_connection:
-        serial_communication.send_data(serial_connection, b'temp')
+        success = serial_communication.send_data(serial_connection, b'\x02')
         time.sleep(0.5)  # Small delay to ensure the data is received
-        temperature = serial_communication.receive_data(serial_connection)
-        if temperature:
+        temperature_data = serial_communication.receive_data(serial_connection, 4)
+        if temperature_data:
+            temperature = struct.unpack('f', temperature_data)[0]
             log_text.config(state=NORMAL)
-            log_text.insert(END, f"{temperature}\n", "success")
+            log_text.insert(END, f"Internal Temperature: {temperature:.2f} °C\n", "success")
             log_text.config(state=DISABLED)
         else:
             log_text.config(state=NORMAL)
@@ -99,7 +117,7 @@ def clear_text(event):
 
 def main_gui():
     global establish_button, serial_port_combo, log_text, get_temperature_button, toggle_led_button
-    
+
     display_screen = Tk()
     display_screen.geometry("800x600")
     display_screen.title("Client")
