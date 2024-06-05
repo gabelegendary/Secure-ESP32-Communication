@@ -2,7 +2,6 @@ from tkinter import *
 from tkinter.ttk import Combobox
 from serial.tools.list_ports import comports
 import serial_communication
-import client_exchange
 import time
 import struct
 
@@ -29,7 +28,6 @@ def establish_session():
         log_text.config(state=DISABLED)
         get_temperature_button.config(state=NORMAL)
         toggle_led_button.config(state=NORMAL)
-        handle_key_exchange()
     else:
         log_text.config(state=NORMAL)
         log_text.insert(END, "Failed to establish connection.\n", "error")
@@ -39,7 +37,7 @@ def close_session():
     global serial_connection, get_temperature_button, toggle_led_button
 
     if serial_connection:
-        serial_communication.close_serial(serial_connection)
+        serial_communication.close_serial()
         log_text.config(state=NORMAL)
         log_text.insert(END, "Session closed.\n", "success")
         log_text.config(state=DISABLED)
@@ -48,42 +46,21 @@ def close_session():
         get_temperature_button.config(state=DISABLED)
         toggle_led_button.config(state=DISABLED)
 
-def handle_key_exchange():
-    global serial_connection
-
-    try:
-        # Send command for key exchange
-        serial_communication.send_data(serial_connection, b'\x03')
-        time.sleep(1)  # Small delay to ensure the data is received
-        client_exchange.session_init(serial_connection)
-        log_text.config(state=NORMAL)
-        log_text.insert(END, "RSA key generated and sent successfully!\n", "success")
-        log_text.config(state=DISABLED)
-    except Exception as e:
-        log_text.config(state=NORMAL)
-        log_text.insert(END, f"An error occurred during key exchange: {e}\n", "error")
-        log_text.config(state=DISABLED)
-
 def toggle_led():
     global serial_connection
 
     if serial_connection:
-        success = serial_communication.send_data(serial_connection, b'\x01')
+        success = serial_communication.send_data(b'\x02')
         if success:
-            if toggle_led_button['text'] == 'Toggle LED':
-                toggle_led_button.config(text='Turn LED Off')
+            led_data = serial_communication.receive_data(1)
+            if led_data:
                 log_text.config(state=NORMAL)
-                log_text.insert(END, "LED turned on.\n", "success")
+                log_text.insert(END, "LED toggled.\n", "success")
                 log_text.config(state=DISABLED)
             else:
-                toggle_led_button.config(text='Toggle LED')
                 log_text.config(state=NORMAL)
-                log_text.insert(END, "LED turned off.\n", "success")
+                log_text.insert(END, "Failed to toggle LED.\n", "error")
                 log_text.config(state=DISABLED)
-        else:
-            log_text.config(state=NORMAL)
-            log_text.insert(END, "Failed to toggle LED.\n", "error")
-            log_text.config(state=DISABLED)
     else:
         log_text.config(state=NORMAL)
         log_text.insert(END, "Session not established.\n", "error")
@@ -93,17 +70,22 @@ def get_temperature():
     global serial_connection
 
     if serial_connection:
-        success = serial_communication.send_data(serial_connection, b'\x02')
-        time.sleep(0.5)  # Small delay to ensure the data is received
-        temperature_data = serial_communication.receive_data(serial_connection, 4)
-        if temperature_data:
-            temperature = struct.unpack('f', temperature_data)[0]
-            log_text.config(state=NORMAL)
-            log_text.insert(END, f"Internal Temperature: {temperature:.2f} °C\n", "success")
-            log_text.config(state=DISABLED)
+        success = serial_communication.send_data(b'\x01')
+        if success:
+            time.sleep(0.5)  # Small delay to ensure the data is received
+            temperature_data = serial_communication.receive_data(4)
+            if temperature_data and len(temperature_data) == 4:
+                temperature = struct.unpack('f', temperature_data)[0]
+                log_text.config(state=NORMAL)
+                log_text.insert(END, f"Internal Temperature: {temperature:.2f} °C\n", "success")
+                log_text.config(state=DISABLED)
+            else:
+                log_text.config(state=NORMAL)
+                log_text.insert(END, "Failed to get temperature.\n", "error")
+                log_text.config(state=DISABLED)
         else:
             log_text.config(state=NORMAL)
-            log_text.insert(END, "Failed to get temperature.\n", "error")
+            log_text.insert(END, "Failed to send temperature request.\n", "error")
             log_text.config(state=DISABLED)
     else:
         log_text.config(state=NORMAL)

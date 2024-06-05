@@ -1,56 +1,53 @@
 #include <Arduino.h>
-#include <driver/adc.h>
-#include <esp_adc_cal.h>
-#include "session.h"
+#include <esp_system.h>
 #include "serial_communication.h"
 
-const int ledPin = 21; // Define the pin for the LED
-bool ledState = LOW;   // Initial state of the LED
+// Define the pin for the LED
+const int ledPin = 21;
+
+// Define command constants
+const uint8_t GET_TEMPERATURE = 0x01;
+const uint8_t TOGGLE_LED = 0x02;
 
 void setup()
 {
-  pinMode(ledPin, OUTPUT); // Initialize the LED pin as an output
-  Serial.begin(115200);    // Start serial communication at 115200 baud
-  Serial.println("Setup completed.");
-  session_init(); // Initialize the session for key exchange
-  delay(1000);    // Give some time for initialization
-}
+  // Initialize serial communication at the defined baud rate
+  initialize_serial();
 
-void toggleLED()
-{
-  ledState = !ledState;           // Toggle the LED state
-  digitalWrite(ledPin, ledState); // Write the LED state to the pin
-  Serial.println("LED toggled.");
+  // Initialize the LED pin as an output
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
 }
 
 void loop()
 {
-  uint8_t command[64];                                    // Buffer to hold incoming data
-  size_t length = receive_data(command, sizeof(command)); // Receive data
+  // Buffer to hold incoming data
+  uint8_t buffer[64];
+  size_t len = receive_data(buffer, sizeof(buffer));
 
-  if (length > 0)
+  // If data is received
+  if (len == 1)
   {
-    Serial.print("Command received: ");
-    Serial.println(command[0], HEX);
-
-    switch (command[0])
+    switch (buffer[0])
     {
-    case 0x01: // Command for toggling LED
-      toggleLED();
-      break;
-    case 0x02: // Command for getting temperature
+    case GET_TEMPERATURE:
     {
-      float temp_celsius = temperatureRead();
-      send_data((uint8_t *)&temp_celsius, sizeof(temp_celsius));
-      Serial.println("Temperature sent.");
-      break;
+      float temperature = temperatureRead();
+      send_data((uint8_t *)&temperature, sizeof(temperature));
     }
-    case 0x03: // Command for key exchange
-      Serial.println("Key exchange command received.");
-      server_receive_and_verify_key();
-      break;
+    break;
+
+    case TOGGLE_LED:
+    {
+      digitalWrite(ledPin, !digitalRead(ledPin));
+      uint8_t response[1] = {TOGGLE_LED};
+      send_data(response, 1);
+    }
+    break;
+
     default:
-      Serial.println("Invalid command received.");
+      // Handle unrecognized command
+      send_data((uint8_t *)"Unknown command.", 16);
       break;
     }
   }

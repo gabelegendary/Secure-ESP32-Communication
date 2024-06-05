@@ -1,35 +1,33 @@
 import serial
+import serial.tools.list_ports
 
-def initialize_serial(port_name, baud_rate):
-    try:
-        serial_connection = serial.Serial(port_name, baud_rate, timeout=1)
-        if serial_connection.is_open:
-            return serial_connection
-        else:
-            return None
-    except serial.SerialException:
-        return None
+ser: serial.Serial  # Serial connection object
 
-def send_data(serial_connection, data):
-    try:
-        serial_connection.write(data)
-        return True
-    except serial.SerialException:
-        return False
+def initialize_serial(port, baudrate) -> bool:
+    global ser
+    ser = serial.Serial(port, baudrate)
+    return ser.is_open
 
-def receive_data(serial_connection, expected_length):
-    try:
-        data = serial_connection.read(expected_length)
-        if len(data) == expected_length:
-            return data
-        else:
-            return None
-    except serial.SerialException:
-        return None
+def send_data(data) -> bool:
+    global ser
+    ret = False
+    if ser.is_open == True:
+        ret = (len(data) == ser.write(data))  # Send
+    return ret
+    
 
-def close_serial(serial_connection):
+def receive_data(size: int):
+    global ser
+    data = bytes()
+    if ser.is_open == True:
+        data = ser.read(size)
+    return data
+
+
+def close_serial():
+    global ser
     try:
-        if serial_connection.is_open:
-            serial_connection.close()
+        if ser.is_open:
+            ser.close()
     except serial.SerialException:
         pass
