@@ -1,146 +1,127 @@
 from tkinter import *
 from tkinter.ttk import Combobox
 from serial.tools.list_ports import comports
-import serial_communication
-import time
-import struct
+from client_exchange import Session
 
-# Global variable to store the serial connection
-serial_connection = None
+class SecureClientApp:
+    def __init__(self, master, select_options):
+        self.master = master
+        self.serial_connection = None
+        self.session = None
+        self.setup_ui(select_options)
 
-def establish_session():
-    global serial_connection, get_temperature_button, toggle_led_button
+    def setup_ui(self, select_options):
+        self.master.title("Secure Client")
+        self.master.geometry("800x600")
 
-    selected_port = serial_port_combo.get()
+        self.establish_button = Button(self.master, text="Establish Session", command=self.establish_session, state=DISABLED)
+        self.establish_button.place(x=300, y=10)
 
-    if not selected_port:
-        log_text.config(state=NORMAL)
-        log_text.insert(END, "Please select a serial port.\n", "error")
-        log_text.config(state=DISABLED)
-        return
+        self.get_temperature_button = Button(self.master, text="Get Temperature", command=self.get_temperature, state=DISABLED)
+        self.get_temperature_button.place(x=480, y=10)
 
-    serial_connection = serial_communication.initialize_serial(selected_port, 115200)
+        self.toggle_led_button = Button(self.master, text="TURN LED ON", command=self.toggle_led, state=DISABLED)
+        self.toggle_led_button.place(x=660, y=10)
 
-    if serial_connection:
-        establish_button.config(text="Close Session", command=close_session)
-        log_text.config(state=NORMAL)
-        log_text.insert(END, "Connection established.\n", "success")
-        log_text.config(state=DISABLED)
-        get_temperature_button.config(state=NORMAL)
-        toggle_led_button.config(state=NORMAL)
-    else:
-        log_text.config(state=NORMAL)
-        log_text.insert(END, "Failed to establish connection.\n", "error")
-        log_text.config(state=DISABLED)
+        serial_port_label = Label(self.master, text="Select Serial Port:")
+        serial_port_label.place(x=10, y=14)
+        self.serial_port_combo = Combobox(self.master, values=select_options, width=15)
+        self.serial_port_combo.place(x=130, y=14)
+        self.serial_port_combo.bind("<<ComboboxSelected>>", self.update_button_state)
 
-def close_session():
-    global serial_connection, get_temperature_button, toggle_led_button
+        log_frame = Frame(self.master, bg="black")
+        log_frame.place(x=20, y=80, width=760, height=500)
 
-    if serial_connection:
-        serial_communication.close_serial()
-        log_text.config(state=NORMAL)
-        log_text.insert(END, "Session closed.\n", "success")
-        log_text.config(state=DISABLED)
-        establish_button.config(text="Establish Session", command=establish_session)
-        serial_connection = None
-        get_temperature_button.config(state=DISABLED)
-        toggle_led_button.config(state=DISABLED)
+        self.log_text = Text(log_frame, bg="black", fg="white", wrap=WORD, width=80, height=20)
+        self.log_text.pack(expand=YES, fill=BOTH)
 
-def toggle_led():
-    global serial_connection
+        log_label = Label(self.master, text="Log:")
+        log_label.place(x=20, y=50)
 
-    if serial_connection:
-        success = serial_communication.send_data(b'\x02')
+        clear_log_label = Label(self.master, text="Clear Log", foreground="blue", cursor="hand2")
+        clear_log_label.place(x=710, y=50)
+        clear_log_label.bind("<Button-1>", self.clear_log)
+
+    def establish_session(self):
+        success = Session.select()
+        if not success:
+            self.print_log("Please select a serial port.")
+            self.establish_button.config(state=DISABLED)
+            return
+
         if success:
-            led_data = serial_communication.receive_data(1)
-            if led_data:
-                if toggle_led_button['text'] == 'Toggle LED':
-                    toggle_led_button.config(text='Turn LED Off')
-                    log_text.config(state=NORMAL)
-                    log_text.insert(END, "LED turned on.\n", "success")
-                    log_text.config(state=DISABLED)
-                else:
-                    toggle_led_button.config(text='Toggle LED')
-                    log_text.config(state=NORMAL)
-                    log_text.insert(END, "LED turned off.\n", "success")
-                    log_text.config(state=DISABLED)
-            else:
-                log_text.config(state=NORMAL)
-                log_text.insert(END, "Failed to toggle LED.\n", "error")
-                log_text.config(state=DISABLED)
-    else:
-        log_text.config(state=NORMAL)
-        log_text.insert(END, "Session not established.\n", "error")
-        log_text.config(state=DISABLED)
-
-def get_temperature():
-    global serial_connection
-
-    if serial_connection:
-        success = serial_communication.send_data(b'\x01')
-        if success:
-            time.sleep(0.5)  # Small delay to ensure the data is received
-            temperature_data = serial_communication.receive_data(4)
-            if temperature_data and len(temperature_data) == 4:
-                temperature = struct.unpack('f', temperature_data)[0]
-                log_text.config(state=NORMAL)
-                log_text.insert(END, f"Internal Temperature: {temperature:.2f} °C\n", "success")
-                log_text.config(state=DISABLED)
-            else:
-                log_text.config(state=NORMAL)
-                log_text.insert(END, "Failed to get temperature.\n", "error")
-                log_text.config(state=DISABLED)
+            self.print_log("Session established successfully")
+            self.establish_button.config(text="Close Session", command=self.close_session)
+            self.get_temperature_button.config(state=NORMAL)
+            self.toggle_led_button.config(state=NORMAL)
+            self.session = Session(self.serial_port_combo.get())
         else:
-            log_text.config(state=NORMAL)
-            log_text.insert(END, "Failed to send temperature request.\n", "error")
-            log_text.config(state=DISABLED)
-    else:
-        log_text.config(state=NORMAL)
-        log_text.insert(END, "Session not established.\n", "error")
-        log_text.config(state=DISABLED)
+            self.print_log("Failed to establish session")
+            self.get_temperature_button.config(state=DISABLED)
+            self.toggle_led_button.config(state=DISABLED)
 
-def clear_text(event):
-    log_text.config(state=NORMAL)
-    log_text.delete(1.0, END)
-    log_text.config(state=DISABLED)
+    def close_session(self):
+        if self.session:
+            self.session.close_serial()
+            self.session = None
+            self.print_log("Session closed successfully.")
+            self.establish_button.config(text="Establish Session", command=self.establish_session)
+            self.get_temperature_button.config(state=DISABLED)
+            self.toggle_led_button.config(state=DISABLED)
+        else:
+            self.print_log("No active session to close.")
 
-def main_gui():
-    global establish_button, serial_port_combo, log_text, get_temperature_button, toggle_led_button
+    def get_temperature(self):
+        received_bytes = self.session.get_temperature()
+        if received_bytes is not None:
+            try:
+                temperature = received_bytes.decode("utf-8")
+                message = f"Temperature: {temperature} °C"
+                self.print_log(message)
+            except Exception as e:
+                self.print_log(f"Error decoding temperature: {str(e)}")
+        else:
+            self.print_log("Failed to retrieve temperature")
 
-    display_screen = Tk()
-    display_screen.geometry("800x600")
-    display_screen.title("Client")
+    def toggle_led(self):
+        state = self.session.toggle_led()
+        if state is not None:
+            try:
+                state_str = state.decode("utf-8").strip('\x00')
+                if state_str == "1":
+                    self.print_log("LED Turned ON")
+                    self.toggle_led_button.config(text="TURN LED OFF")
+                elif state_str == "0":
+                    self.print_log("LED Turned OFF")
+                    self.toggle_led_button.config(text="TURN LED ON")
+                else:
+                    self.print_log("Unexpected LED status response")
+            except Exception as e:
+                self.print_log(f"Error decoding LED status: {str(e)}")
+        else:
+            self.print_log("Failed to toggle LED")
 
-    establish_button = Button(display_screen, text="Establish Session", command=establish_session)
-    establish_button.place(x=280, y=10)
+    def clear_log(self, event):
+        self.log_text.delete(1.0, END)
 
-    get_temperature_button = Button(display_screen, text="Get Temperature", state=DISABLED, command=get_temperature)
-    get_temperature_button.place(x=480, y=10)
+    def print_log(self, log):
+        self.log_text.insert(END, log + '\n')
+        self.log_text.see(END)
 
-    toggle_led_button = Button(display_screen, text="Toggle LED", state=DISABLED, command=toggle_led)
-    toggle_led_button.place(x=680, y=10)
+    def update_button_state(self, event):
+        port = self.serial_port_combo.get()
+        self.session = Session(port)
+        self.print_log(f"Selected Serial Port: {port}")
+        self.establish_button.config(state=NORMAL)
+        self.get_temperature_button.config(state=DISABLED)
+        self.toggle_led_button.config(state=DISABLED)
 
-    serial_ports = [port.device for port in comports()]
-    serial_port_label = Label(display_screen, text="Serial Port:")
-    serial_port_label.place(x=10, y=14)
-    serial_port_combo = Combobox(display_screen, values=serial_ports, width=15)
-    serial_port_combo.place(x=100, y=14)
+def list_serial_ports():
+    ports = comports()
+    return [port.device for port in ports]
 
-    log_frame = Frame(display_screen, bg="black")
-    log_frame.place(x=20, y=80, width=760, height=500)
-
-    log_text = Text(log_frame, bg="black", fg="white", wrap=WORD, width=80, height=20)
-    log_text.pack(expand=YES, fill=BOTH)
-    log_text.tag_configure("success", foreground="white")
-    log_text.tag_configure("error", foreground="red")
-
-    log_label = Label(display_screen, text="Log:")
-    log_label.place(x=20, y=50)
-
-    clear_text_label = Label(display_screen, text="Clear", foreground="blue", cursor="hand2")
-    clear_text_label.place(x=730, y=50)
-    clear_text_label.bind("<Button-1>", clear_text)
-
-    display_screen.mainloop()
-
-main_gui()
+if __name__ == "__main__":
+    root = Tk()
+    combobox_options = list_serial_ports()
+    app = SecureClientApp(root, combobox_options)
+    root.mainloop()

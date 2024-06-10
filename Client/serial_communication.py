@@ -1,33 +1,28 @@
 import serial
 import serial.tools.list_ports
 
-ser: serial.Serial  # Serial connection object
+def initialize_serial(port):
+    global sercom
+    sercom = serial.Serial(port, 115200)
+    return sercom.is_open
 
-def initialize_serial(port, baudrate) -> bool:
-    global ser
-    ser = serial.Serial(port, baudrate)
-    return ser.is_open
+def send_data(data: bytes):
+    status = False
+    global sercom
+    if sercom.is_open:
+        sercom.reset_output_buffer()
+        status = (len(data) == sercom.write(data))
+    return status
+        
 
-def send_data(data) -> bool:
-    global ser
-    ret = False
-    if ser.is_open == True:
-        ret = (len(data) == ser.write(data))  # Send
-    return ret
-    
-
-def receive_data(size: int):
-    global ser
-    data = bytes()
-    if ser.is_open == True:
-        data = ser.read(size)
+def receive_data(size: int) -> bytes:
+    data = b''
+    global sercom
+    if sercom.is_open:
+        sercom.reset_input_buffer()
+        data = sercom.read(size)
     return data
 
-
 def close_serial():
-    global ser
-    try:
-        if ser.is_open:
-            ser.close()
-    except serial.SerialException:
-        pass
+    global sercom
+    sercom.close()
