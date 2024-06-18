@@ -1,12 +1,14 @@
 import serial
 import serial.tools.list_ports
 
-def initialize_serial(port):
+
+def init(port):
     global sercom
     sercom = serial.Serial(port, 115200)
     return sercom.is_open
 
-def send_data(data: bytes):
+
+def send(data: bytes):
     status = False
     global sercom
     if sercom.is_open:
@@ -15,7 +17,7 @@ def send_data(data: bytes):
     return status
         
 
-def receive_data(size: int) -> bytes:
+def receive(size: int) -> bytes:
     data = b''
     global sercom
     if sercom.is_open:
@@ -23,6 +25,6 @@ def receive_data(size: int) -> bytes:
         data = sercom.read(size)
     return data
 
-def close_serial():
+def close():
     global sercom
     sercom.close()

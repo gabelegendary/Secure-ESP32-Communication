@@ -16,11 +16,12 @@ bool send_data(const uint8_t *data, size_t dlen)
 
 size_t receive_data(uint8_t *buf, size_t blen)
 {
-    if (Serial.available() > 0)
+    while (0 == Serial.available())
     {
-        return Serial.readBytes(buf, blen);
+        ;
     }
-    return 0;
+
+    return Serial.readBytes(buf, blen);
 }
 
 void close_serial()

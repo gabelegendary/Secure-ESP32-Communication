@@ -1,12 +1,11 @@
 from tkinter import *
 from tkinter.ttk import Combobox
 from serial.tools.list_ports import comports
-from client_exchange import Session
+from session import Session
 
 class SecureClientApp:
     def __init__(self, master, select_options):
         self.master = master
-        self.serial_connection = None
         self.session = None
         self.setup_ui(select_options)
 
@@ -15,13 +14,13 @@ class SecureClientApp:
         self.master.geometry("800x600")
 
         self.establish_button = Button(self.master, text="Establish Session", command=self.establish_session, state=DISABLED)
-        self.establish_button.place(x=300, y=10)
+        self.establish_button.place(x=280, y=10)
 
         self.get_temperature_button = Button(self.master, text="Get Temperature", command=self.get_temperature, state=DISABLED)
         self.get_temperature_button.place(x=480, y=10)
 
         self.toggle_led_button = Button(self.master, text="TURN LED ON", command=self.toggle_led, state=DISABLED)
-        self.toggle_led_button.place(x=660, y=10)
+        self.toggle_led_button.place(x=680, y=10)
 
         serial_port_label = Label(self.master, text="Select Serial Port:")
         serial_port_label.place(x=10, y=14)
@@ -39,31 +38,28 @@ class SecureClientApp:
         log_label.place(x=20, y=50)
 
         clear_log_label = Label(self.master, text="Clear Log", foreground="blue", cursor="hand2")
-        clear_log_label.place(x=710, y=50)
+        clear_log_label.place(x=730, y=50)
         clear_log_label.bind("<Button-1>", self.clear_log)
 
     def establish_session(self):
-        success = Session.select()
-        if not success:
+        if self.session is None:
             self.print_log("Please select a serial port.")
             self.establish_button.config(state=DISABLED)
-            return
-
-        if success:
-            self.print_log("Session established successfully")
-            self.establish_button.config(text="Close Session", command=self.close_session)
-            self.get_temperature_button.config(state=NORMAL)
-            self.toggle_led_button.config(state=NORMAL)
-            self.session = Session(self.serial_port_combo.get())
         else:
-            self.print_log("Failed to establish session")
-            self.get_temperature_button.config(state=DISABLED)
-            self.toggle_led_button.config(state=DISABLED)
+            success = self.session.establish()
+            if success:
+                self.print_log("Session established successfully")
+                self.establish_button.config(text="Close Session", command=self.close_session)
+                self.get_temperature_button.config(state=NORMAL)
+                self.toggle_led_button.config(state=NORMAL)
+            else:
+                self.print_log("Failed to establish session")
+                self.get_temperature_button.config(state=DISABLED)
+                self.toggle_led_button.config(state=DISABLED)
 
     def close_session(self):
         if self.session:
-            self.session.close_serial()
-            self.session = None
+            self.session.terminate()
             self.print_log("Session closed successfully.")
             self.establish_button.config(text="Establish Session", command=self.establish_session)
             self.get_temperature_button.config(state=DISABLED)
