@@ -26,15 +26,12 @@ class Session:
         self.__clientRSA.generate(self.RSA_SIZE * 8, self.EXPONENT)
 
         public_key_der = self.__clientRSA.export_public_key()
-        print("Generated RSA Public Key:", public_key_der.hex())
-
         self.send_datas(public_key_der)
 
         buffer = self.receive(2 * self.RSA_SIZE)
         server_key_pub = self.__clientRSA.decrypt(buffer[0:self.RSA_SIZE])
         server_key_pub += self.__clientRSA.decrypt(buffer[self.RSA_SIZE:2 * self.RSA_SIZE])
         self.__serverRSA = pk.RSA().from_DER(server_key_pub)
-        print("Received Server RSA Public Key:", server_key_pub.hex())
 
         del self.__clientRSA
         self.__clientRSA = pk.RSA()
@@ -44,9 +41,7 @@ class Session:
         buffer = self.__serverRSA.encrypt(buffer[0: 184]) + self.__serverRSA.encrypt(buffer[184:368]) + self.__serverRSA.encrypt(buffer[368:550])
 
         self.send_datas(buffer)
-        print("sent second client key")
         buffer = self.receive(self.RSA_SIZE)
-        print("Received OKAY")
 
         if b"OKAY" != self.__clientRSA.decrypt(buffer):
             print("Failed to exchange the public keys")
@@ -57,8 +52,6 @@ class Session:
         hmac_digest = self.hmac_instance.digest()
         buf += hmac_digest
         communication.send(buf)
-        print("Key hashed:", buf.hex())
-        print("Sent")
 
     def receive(self, size: int) -> bytes:
         buffer = communication.receive(size + self.hmac_instance.digest_size)
